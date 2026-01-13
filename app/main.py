@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from app.database import engine, Base, get_db
+from app.database import engine, Base, get_db, SessionLocal
 from app import models
+from app.models import Site, SiteConfig
 from app.schemas import (
     GestureEvaluateRequest,
     GestureEvaluateResponse,
@@ -11,7 +12,7 @@ from app.schemas import (
     SiteConfigResponse,
     SiteConfigUpdateRequest,
 )
-from app.services import GestureService, ConfigService, SiteConfigService
+from app.services import GestureService, ConfigService, SiteConfigService, get_profile_defaults
 
 app = FastAPI()
 
@@ -25,10 +26,43 @@ app.add_middleware(
 )
 
 
+def initialize_site_configs():
+    """Create default SiteConfig for existing sites without configuration."""
+    db = SessionLocal()
+    try:
+        # Get all sites
+        sites = db.query(Site).all()
+        
+        for site in sites:
+            # Check if site has config
+            existing_config = db.query(SiteConfig).filter(
+                SiteConfig.site_id == site.id
+            ).first()
+            
+            if not existing_config:
+                # Create default config
+                profile_defaults = get_profile_defaults("default")
+                config = SiteConfig(
+                    site_id=site.id,
+                    confidence_threshold=profile_defaults["confidence_threshold"],
+                    cooldown_ms=profile_defaults["cooldown_ms"],
+                    profile="default",
+                )
+                config.set_enabled_gestures(profile_defaults["enabled_gestures"])
+                db.add(config)
+                print(f"Created default SiteConfig for site: {site.id}")
+        
+        db.commit()
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Create database tables on startup."""
+    """Create database tables and initialize site configurations on startup."""
     Base.metadata.create_all(bind=engine)
+    initialize_site_configs()
+
 
 
 @app.get("/health")

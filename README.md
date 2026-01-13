@@ -148,15 +148,24 @@ Tables are created automatically when the application starts.
       "reason": "string"
     }
     ```
-  - Supported gestures:
+  - **Behavior**:
+    - Loads site configuration (creates default if doesn't exist)
+    - Checks if gesture is in `enabled_gestures` for the site
+    - Uses site-specific `confidence_threshold`
+    - Uses site-specific `cooldown_ms`
+  - **Response reasons**:
+    - `gesture_disabled` - Gesture not enabled for this site
+    - `confidence_too_low` - Below site's confidence threshold
+    - `cooldown_active` - Still in cooldown period
+    - `gesture_accepted` - Gesture executed successfully
+    - `Unknown gesture: {name}` - Gesture has no action mapping
+  - Default supported gestures:
     - `open_palm` → `scroll_down`
     - `fist` → `scroll_up`
     - `swipe_left` → `focus_previous`
     - `swipe_right` → `focus_next`
     - `pinch` → `click`
-  - Minimum confidence threshold: 0.7
-  - Cooldown: 600ms per site+gesture (prevents rapid-fire execution)
-  - Cooldown blocked gestures return `execute: false` with `reason: "cooldown_active"`
+  - Site-specific gesture mappings override defaults (see /api/v1/config/mapping)
 
 ## API Documentation
 

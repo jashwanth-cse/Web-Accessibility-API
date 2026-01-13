@@ -64,13 +64,14 @@ class CooldownManager:
         # Dictionary to store last execution time per (site_id, gesture)
         self._last_execution: Dict[Tuple[str, str], datetime] = {}
 
-    def is_in_cooldown(self, site_id: str, gesture: str) -> bool:
+    def is_in_cooldown(self, site_id: str, gesture: str, cooldown_ms: int) -> bool:
         """
         Check if a gesture is currently in cooldown period.
 
         Args:
             site_id: The site identifier
             gesture: The gesture name
+            cooldown_ms: Cooldown period in milliseconds
 
         Returns:
             True if gesture is in cooldown, False otherwise
@@ -83,7 +84,7 @@ class CooldownManager:
         current_time = datetime.utcnow()
         elapsed_ms = (current_time - last_time).total_seconds() * 1000
 
-        return elapsed_ms < COOLDOWN_MS
+        return elapsed_ms < cooldown_ms
 
     def update_execution_time(self, site_id: str, gesture: str) -> None:
         """
@@ -99,6 +100,7 @@ class CooldownManager:
 
 # Global cooldown manager instance
 cooldown_manager = CooldownManager()
+
 
 
 class SiteConfigService:
@@ -302,6 +304,9 @@ class GestureService:
         """
         Evaluate a gesture and determine if it should be executed.
 
+        Respects site-specific configuration including enabled gestures,
+        confidence threshold, and cooldown period.
+
         Args:
             request: The gesture evaluation request
             db: Database session
@@ -309,12 +314,24 @@ class GestureService:
         Returns:
             GestureEvaluateResponse with execution decision
         """
-        # Check confidence threshold
-        if request.confidence < CONFIDENCE_THRESHOLD:
+        # Load site configuration (creates default if doesn't exist)
+        site_config = SiteConfigService.get_site_config(request.site_id, db)
+
+        # Check if gesture is enabled for this site
+        if site_config.enabled_gestures is not None:
+            if request.gesture not in site_config.enabled_gestures:
+                return GestureEvaluateResponse(
+                    execute=False,
+                    action=None,
+                    reason="gesture_disabled",
+                )
+
+        # Check site-specific confidence threshold
+        if request.confidence < site_config.confidence_threshold:
             return GestureEvaluateResponse(
                 execute=False,
                 action=None,
-                reason=f"Confidence {request.confidence} below threshold {CONFIDENCE_THRESHOLD}",
+                reason="confidence_too_low",
             )
 
         # Get action for gesture (site-specific or default)
@@ -329,8 +346,10 @@ class GestureService:
                 reason=f"Unknown gesture: {request.gesture}",
             )
 
-        # Check cooldown
-        if cooldown_manager.is_in_cooldown(request.site_id, request.gesture):
+        # Check cooldown using site-specific cooldown period
+        if cooldown_manager.is_in_cooldown(
+            request.site_id, request.gesture, site_config.cooldown_ms
+        ):
             return GestureEvaluateResponse(
                 execute=False,
                 action=action,
@@ -354,7 +373,8 @@ class GestureService:
         return GestureEvaluateResponse(
             execute=True,
             action=action,
-            reason="Gesture recognized and validated",
+            reason="gesture_accepted",
         )
+
 
 
