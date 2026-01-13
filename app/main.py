@@ -8,8 +8,10 @@ from app.schemas import (
     GestureEvaluateResponse,
     GestureConfigRequest,
     GestureConfigResponse,
+    SiteConfigResponse,
+    SiteConfigUpdateRequest,
 )
-from app.services import GestureService, ConfigService
+from app.services import GestureService, ConfigService, SiteConfigService
 
 app = FastAPI()
 
@@ -58,4 +60,27 @@ async def save_gesture_mapping(
     Site-specific mappings take precedence over default mappings.
     """
     return ConfigService.save_gesture_mapping(request, db)
+
+
+@app.get("/api/v1/config/site/{site_id}", response_model=SiteConfigResponse)
+async def get_site_config(site_id: str, db: Session = Depends(get_db)):
+    """
+    Get site configuration. Creates default config if it doesn't exist.
+
+    Returns site-specific settings including enabled gestures, thresholds, and cooldown.
+    """
+    return SiteConfigService.get_site_config(site_id, db)
+
+
+@app.post("/api/v1/config/site", response_model=SiteConfigResponse)
+async def update_site_config(
+    request: SiteConfigUpdateRequest, db: Session = Depends(get_db)
+):
+    """
+    Update site configuration. Creates if doesn't exist.
+
+    Only updates the fields that are provided in the request.
+    """
+    return SiteConfigService.update_site_config(request, db)
+
 

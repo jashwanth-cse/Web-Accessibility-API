@@ -1,13 +1,16 @@
 from sqlalchemy.orm import Session
-from app.models import GestureEvent, GestureConfig
+from app.models import GestureEvent, GestureConfig, SiteConfig
 from app.schemas import (
     GestureEvaluateRequest,
     GestureEvaluateResponse,
     GestureConfigRequest,
     GestureConfigResponse,
+    SiteConfigResponse,
+    SiteConfigUpdateRequest,
 )
 from datetime import datetime
 from typing import Dict, Tuple, Optional
+from fastapi import HTTPException
 
 # Gesture to action mapping
 GESTURE_ACTION_MAP = {
@@ -20,6 +23,38 @@ GESTURE_ACTION_MAP = {
 
 CONFIDENCE_THRESHOLD = 0.7
 COOLDOWN_MS = 600  # Cooldown period in milliseconds
+
+# Accessibility Profiles
+PROFILES = {
+    "default": {
+        "confidence_threshold": 0.7,
+        "cooldown_ms": 800,
+        "enabled_gestures": ["open_palm", "fist", "swipe_left", "swipe_right", "pinch"],
+    },
+    "elderly": {
+        "confidence_threshold": 0.6,
+        "cooldown_ms": 1200,
+        "enabled_gestures": ["open_palm", "fist"],
+    },
+    "motor_impaired": {
+        "confidence_threshold": 0.5,
+        "cooldown_ms": 1500,
+        "enabled_gestures": ["open_palm"],
+    },
+}
+
+
+def get_profile_defaults(profile_name: str) -> dict:
+    """
+    Get default configuration for a profile.
+
+    Args:
+        profile_name: Name of the profile
+
+    Returns:
+        Dictionary with profile defaults
+    """
+    return PROFILES.get(profile_name, PROFILES["default"]).copy()
 
 
 class CooldownManager:
@@ -64,6 +99,117 @@ class CooldownManager:
 
 # Global cooldown manager instance
 cooldown_manager = CooldownManager()
+
+
+class SiteConfigService:
+    """Service layer for site configuration management."""
+
+    @staticmethod
+    def get_site_config(site_id: str, db: Session) -> SiteConfigResponse:
+        """
+        Get site configuration. Creates default config if it doesn't exist.
+
+        Returns effective configuration with profile defaults merged with explicit values.
+
+        Args:
+            site_id: The site identifier
+            db: Database session
+
+        Returns:
+            SiteConfigResponse with site configuration
+        """
+        config = db.query(SiteConfig).filter(SiteConfig.site_id == site_id).first()
+
+        if not config:
+            # Create default configuration
+            profile_defaults = get_profile_defaults("default")
+            config = SiteConfig(
+                site_id=site_id,
+                confidence_threshold=profile_defaults["confidence_threshold"],
+                cooldown_ms=profile_defaults["cooldown_ms"],
+                profile="default",
+            )
+            config.set_enabled_gestures(profile_defaults["enabled_gestures"])
+            db.add(config)
+            db.commit()
+            db.refresh(config)
+
+        return SiteConfigResponse(
+            site_id=config.site_id,
+            enabled_gestures=config.get_enabled_gestures(),
+            confidence_threshold=config.confidence_threshold,
+            cooldown_ms=config.cooldown_ms,
+            profile=config.profile,
+        )
+
+    @staticmethod
+    def update_site_config(
+        request: SiteConfigUpdateRequest, db: Session
+    ) -> SiteConfigResponse:
+        """
+        Update site configuration with profile support.
+
+        When profile is set, applies profile defaults then overlays explicit values.
+        Explicit config values always override profile defaults.
+
+        Args:
+            request: The configuration update request
+            db: Database session
+
+        Returns:
+            SiteConfigResponse with updated configuration
+        """
+        config = (
+            db.query(SiteConfig).filter(SiteConfig.site_id == request.site_id).first()
+        )
+
+        # Determine if profile is being changed
+        profile_changed = False
+        new_profile = request.profile if request.profile is not None else (config.profile if config else "default")
+        
+        if not config:
+            # Create new configuration
+            config = SiteConfig(site_id=request.site_id)
+            db.add(config)
+            profile_changed = True
+        elif request.profile is not None and request.profile != config.profile:
+            profile_changed = True
+
+        # If profile changed, apply profile defaults first
+        if profile_changed:
+            profile_defaults = get_profile_defaults(new_profile)
+            config.profile = new_profile
+            
+            # Apply profile defaults (will be overridden by explicit values below)
+            config.confidence_threshold = profile_defaults["confidence_threshold"]
+            config.cooldown_ms = profile_defaults["cooldown_ms"]
+            config.set_enabled_gestures(profile_defaults["enabled_gestures"])
+
+        # Apply explicit values - these override profile defaults
+        if request.enabled_gestures is not None:
+            config.set_enabled_gestures(request.enabled_gestures)
+
+        if request.confidence_threshold is not None:
+            config.confidence_threshold = request.confidence_threshold
+
+        if request.cooldown_ms is not None:
+            config.cooldown_ms = request.cooldown_ms
+
+        # If profile wasn't explicitly set but we're creating new config, use default
+        if not config.profile:
+            config.profile = "default"
+
+        db.commit()
+        db.refresh(config)
+
+        return SiteConfigResponse(
+            site_id=config.site_id,
+            enabled_gestures=config.get_enabled_gestures(),
+            confidence_threshold=config.confidence_threshold,
+            cooldown_ms=config.cooldown_ms,
+            profile=config.profile,
+        )
+
 
 
 class ConfigService:
@@ -210,4 +356,5 @@ class GestureService:
             action=action,
             reason="Gesture recognized and validated",
         )
+
 

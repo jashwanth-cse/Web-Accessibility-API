@@ -50,6 +50,13 @@ The application uses SQLite for data persistence with SQLAlchemy ORM.
   - `name` (string)
   - `created_at` (datetime)
 
+- **SiteConfig** - Site-specific configuration settings
+  - `site_id` (string, primary key, foreign key to Site.id)
+  - `enabled_gestures` (JSON stored as TEXT, list of enabled gesture strings)
+  - `confidence_threshold` (float, default 0.7)
+  - `cooldown_ms` (int, default 800)
+  - `profile` (string, default "default")
+
 - **GestureEvent** - Represents gesture recognition events
   - `id` (int, primary key, auto-increment)
   - `site_id` (string, foreign key to Site.id)
@@ -88,6 +95,41 @@ Tables are created automatically when the application starts.
     }
     ```
   - Site-specific mappings override default mappings
+
+- **GET /api/v1/config/site/{site_id}** - Get site configuration
+  - Path parameter:
+    - `site_id` (string)
+  - Response:
+    ```json
+    {
+      "site_id": "string",
+      "enabled_gestures": ["gesture1", "gesture2"] or null,
+      "confidence_threshold": 0.7,
+      "cooldown_ms": 800,
+      "profile": "default"
+    }
+    ```
+  - Creates default config if site config doesn't exist
+
+- **POST /api/v1/config/site** - Update site configuration
+  - Request body (all fields except site_id are optional):
+    ```json
+    {
+      "site_id": "string",
+      "enabled_gestures": ["pinch", "open_palm"],
+      "confidence_threshold": 0.8,
+      "cooldown_ms": 600,
+      "profile": "high_precision"
+    }
+    ```
+  - Response: Same as GET response
+  - Only updates provided fields
+  - Creates config with defaults if it doesn't exist
+  - **Accessibility Profiles**: When setting a profile, default values are applied:
+    - `default`: confidence 0.7, cooldown 800ms, all gestures enabled
+    - `elderly`: confidence 0.6, cooldown 1200ms, only ["open_palm", "fist"]
+    - `motor_impaired`: confidence 0.5, cooldown 1500ms, only ["open_palm"]
+  - Explicit config values override profile defaults
 
 - **POST /api/v1/gesture/evaluate** - Evaluate a gesture and determine action
   - Request body:

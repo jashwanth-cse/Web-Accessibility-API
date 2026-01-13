@@ -1,5 +1,13 @@
 <!DOCTYPE html>
 <html>
+    <script src="gesture-accessibility.js"></script>
+<script>
+  GestureAccessibility.init({
+    apiUrl: "http://localhost:8000",
+    siteId: "demo-site",
+    debug: true
+  });
+</script>
 <head>
   <title>Gesture API Test</title>
   <style>
@@ -24,6 +32,7 @@
   Test Button
 </button>
 
-<script src="gesture-test.js"></script>
+
+
 </body>
 </html>
