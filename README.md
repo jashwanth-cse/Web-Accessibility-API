@@ -167,6 +167,40 @@ Tables are created automatically when the application starts.
     - `pinch` → `click`
   - Site-specific gesture mappings override defaults (see /api/v1/config/mapping)
 
+## Client SDK
+
+The `gesture-accessibility.js` script provides a simple way to integrate gesture control:
+
+```html
+<script src="gesture-accessibility.js"></script>
+<script>
+  GestureAccessibility.init({
+    apiUrl: "http://localhost:8000",
+    siteId: "my-site",
+    debug: true
+  });
+</script>
+```
+
+### Virtual Cursor (Experimental)
+
+The SDK includes a virtual cursor overlay that can be controlled programmatically:
+
+```javascript
+// Enter cursor mode (shows cursor, enabled state)
+GestureAccessibility.enterCursorMode();
+
+// Exit cursor mode (hides cursor, disables state)
+GestureAccessibility.exitCursorMode();
+
+// Move to coordinates (x, y)
+GestureAccessibility.moveCursor(100, 200);
+
+// Manual control (lower level)
+GestureAccessibility.showCursor();
+GestureAccessibility.hideCursor();
+```
+
 ## API Documentation
 
 Once the server is running, you can access:

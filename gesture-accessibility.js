@@ -4,6 +4,11 @@
   let lastGesture = null;
   let lastSentTime = 0;
 
+  // Cursor Mode State
+  let gestureStartTime = 0;
+  let lastGestureState = null;
+  let clickCooldown = 0;
+
   /* ================= INIT ================= */
 
   GestureAccessibility.init = function (options) {
@@ -130,19 +135,83 @@
     const ring = lm[16];
     const pinky = lm[20];
 
-    const fingersOpen =
+    // Detect Gestures
+    const isFingersOpen =
       index.y < lm[6].y &&
       middle.y < lm[10].y &&
       ring.y < lm[14].y &&
       pinky.y < lm[18].y;
 
-    const pinch =
+    const isPinch =
       Math.abs(thumb.x - index.x) < 0.05 &&
       Math.abs(thumb.y - index.y) < 0.05;
 
-    if (pinch) {
+    // Simple Fist: Fingers curled down (tip > knuckle)
+    const isFist =
+      !isFingersOpen &&
+      !isPinch &&
+      middle.y > lm[10].y &&
+      ring.y > lm[14].y &&
+      pinky.y > lm[18].y;
+
+    let currentGesture = null;
+    if (isPinch) currentGesture = "pinch";
+    else if (isFingersOpen) currentGesture = "open_palm";
+    else if (isFist) currentGesture = "fist";
+
+    const now = Date.now();
+
+    // ================= CURSOR MODE LOGIC =================
+    if (cursorModeActive) {
+      // 1. Tracking
+      const x = (1 - index.x) * window.innerWidth;
+      const y = index.y * window.innerHeight;
+      moveCursor(x, y);
+
+      // 2. Actions
+      if (currentGesture === "fist") {
+        exitCursorMode();
+        return; // Exit processed
+      }
+
+      if (currentGesture === "pinch") {
+        // Click with cooldown
+        if (now - clickCooldown > 800) {
+          clickCooldown = now;
+          const target = document.elementFromPoint(x, y);
+          target?.click();
+
+          // Visual feedback
+          const cursor = document.getElementById("gesture-cursor");
+          if (cursor) {
+            cursor.style.transform = "translate(-50%, -50%) scale(0.8)";
+            setTimeout(() => cursor.style.transform = "translate(-50%, -50%) scale(1)", 150);
+          }
+          log("Cursor CLICK at", x, y);
+        }
+      }
+      return; // Disable normal navigation in cursor mode
+    }
+
+    // ================= MODE SWITCHING =================
+    // Hold Open Palm for 500ms to enter Cursor Mode
+    if (currentGesture === "open_palm") {
+      if (lastGestureState !== "open_palm") {
+        gestureStartTime = now;
+      } else if (now - gestureStartTime > 500) {
+        enterCursorMode();
+        return;
+      }
+    } else {
+      gestureStartTime = 0;
+    }
+
+    lastGestureState = currentGesture;
+
+    // ================= NORMAL NAVIGATION =================
+    if (isPinch) {
       sendGesture("pinch");
-    } else if (fingersOpen) {
+    } else if (isFingersOpen) {
       sendGesture("open_palm");
     }
   }
@@ -210,6 +279,106 @@
     const next = elements[index + 1] || elements[0];
     next?.focus();
   }
+
+  /* ================= VIRTUAL CURSOR ================= */
+
+  let cursorElement = null;
+  let cursorModeActive = false;
+
+  function createCursor() {
+    /**
+     * Create the virtual cursor DOM element.
+     */
+    if (cursorElement) return; // Already exists
+
+    cursorElement = document.createElement("div");
+    cursorElement.id = "gesture-cursor";
+
+    // Style the cursor
+    cursorElement.style.position = "fixed";
+    cursorElement.style.width = "20px";
+    cursorElement.style.height = "20px";
+    cursorElement.style.borderRadius = "50%";
+    cursorElement.style.backgroundColor = "rgba(255, 100, 100, 0.8)";
+    cursorElement.style.border = "2px solid white";
+    cursorElement.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.5)";
+    cursorElement.style.pointerEvents = "none";
+    cursorElement.style.zIndex = "999999";
+    cursorElement.style.display = "none"; // Hidden by default
+    cursorElement.style.transform = "translate(-50%, -50%)";
+    cursorElement.style.transition = "opacity 0.2s ease";
+
+    document.body.appendChild(cursorElement);
+    log("Virtual cursor created");
+  }
+
+  function showCursor() {
+    /**
+     * Show the virtual cursor.
+     */
+    if (!cursorElement) {
+      createCursor();
+    }
+    cursorElement.style.display = "block";
+    cursorElement.style.opacity = "1";
+    log("Cursor visible");
+  }
+
+  function hideCursor() {
+    /**
+     * Hide the virtual cursor.
+     */
+    if (cursorElement) {
+      cursorElement.style.opacity = "0";
+      setTimeout(() => {
+        if (cursorElement) {
+          cursorElement.style.display = "none";
+        }
+      }, 200);
+      log("Cursor hidden");
+    }
+  }
+
+  function moveCursor(x, y) {
+    /**
+     * Move the virtual cursor to specified screen coordinates.
+     * 
+     * @param {number} x - X coordinate (pixels from left)
+     * @param {number} y - Y coordinate (pixels from top)
+     */
+    if (!cursorElement) {
+      createCursor();
+    }
+    cursorElement.style.left = x + "px";
+    cursorElement.style.top = y + "px";
+  }
+
+  function enterCursorMode() {
+    /**
+     * Enter cursor control mode.
+     */
+    cursorModeActive = true;
+    showCursor();
+    log("Entered cursor mode");
+  }
+
+  function exitCursorMode() {
+    /**
+     * Exit cursor control mode.
+     */
+    cursorModeActive = false;
+    hideCursor();
+    log("Exited cursor mode");
+  }
+
+  // Expose cursor functions
+  GestureAccessibility.createCursor = createCursor;
+  GestureAccessibility.showCursor = showCursor;
+  GestureAccessibility.hideCursor = hideCursor;
+  GestureAccessibility.moveCursor = moveCursor;
+  GestureAccessibility.enterCursorMode = enterCursorMode;
+  GestureAccessibility.exitCursorMode = exitCursorMode;
+
 
   /* ================= EXPORT ================= */
 
