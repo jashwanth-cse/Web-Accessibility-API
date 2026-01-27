@@ -33,6 +33,7 @@ class SiteConfigResponse(BaseModel):
     confidence_threshold: float
     cooldown_ms: int
     profile: str
+    cursor_mode_enabled: bool
 
 
 class SiteConfigUpdateRequest(BaseModel):
@@ -41,5 +42,6 @@ class SiteConfigUpdateRequest(BaseModel):
     confidence_threshold: Optional[float] = Field(None, ge=0.0, le=1.0)
     cooldown_ms: Optional[int] = Field(None, ge=0)
     profile: Optional[str] = None
+    cursor_mode_enabled: Optional[bool] = None
 
 

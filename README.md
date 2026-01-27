@@ -184,7 +184,17 @@ The `gesture-accessibility.js` script provides a simple way to integrate gesture
 
 ### Virtual Cursor (Experimental)
 
-The SDK includes a virtual cursor overlay that can be controlled programmatically:
+The SDK includes a virtual cursor overlay for direct control.
+
+**Usage:**
+1. **Enter**: Hold **Open Palm** steadily for **3 seconds**.
+2. **Move**: Move your hand to control the cursor.
+3. **Scroll Up**: Extend **Index + Middle** (Victory ✌️).
+4. **Scroll Down**: Extend **Index + Pinky** (Rock 🤘).
+5. **Click**: Use **Pinch** gesture (cooldown 800ms).
+6. **Exit**: Hold **Fist** steadily for **3 seconds**.
+
+**Programmatic control:**
 
 ```javascript
 // Enter cursor mode (shows cursor, enabled state)
@@ -192,9 +202,6 @@ GestureAccessibility.enterCursorMode();
 
 // Exit cursor mode (hides cursor, disables state)
 GestureAccessibility.exitCursorMode();
-
-// Move to coordinates (x, y)
-GestureAccessibility.moveCursor(100, 200);
 
 // Manual control (lower level)
 GestureAccessibility.showCursor();

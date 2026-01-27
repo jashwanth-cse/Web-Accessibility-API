@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, Boolean
 from datetime import datetime
 from app.database import Base
 import json
@@ -20,6 +20,8 @@ class SiteConfig(Base):
     confidence_threshold = Column(Float, default=0.7, nullable=False)
     cooldown_ms = Column(Integer, default=800, nullable=False)
     profile = Column(String, default="default", nullable=False)
+    cursor_mode_enabled = Column(Boolean, default=True, nullable=False)
+
 
     def get_enabled_gestures(self):
         """Parse enabled_gestures from JSON string."""

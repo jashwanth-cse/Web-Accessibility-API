@@ -142,6 +142,7 @@ class SiteConfigService:
             confidence_threshold=config.confidence_threshold,
             cooldown_ms=config.cooldown_ms,
             profile=config.profile,
+            cursor_mode_enabled=config.cursor_mode_enabled,
         )
 
     @staticmethod
@@ -197,6 +198,9 @@ class SiteConfigService:
         if request.cooldown_ms is not None:
             config.cooldown_ms = request.cooldown_ms
 
+        if request.cursor_mode_enabled is not None:
+            config.cursor_mode_enabled = request.cursor_mode_enabled
+
         # If profile wasn't explicitly set but we're creating new config, use default
         if not config.profile:
             config.profile = "default"
@@ -210,6 +214,7 @@ class SiteConfigService:
             confidence_threshold=config.confidence_threshold,
             cooldown_ms=config.cooldown_ms,
             profile=config.profile,
+            cursor_mode_enabled=config.cursor_mode_enabled,
         )
 
 
